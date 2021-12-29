@@ -14,89 +14,68 @@ import math
 import pandas as pd
 
 # const
-psychometric_constant = 0.054
-plant_albedo = 0.2
-solar_constant = 1366
-water_flow_rate = 18 #L/min
+psychometric_constant = 0.054 # kPa/deg C
+plant_albedo = 0.2 # 0.2-0.25 for crops
+solar_constant = 1366 # W/m^2
+
+stefan_boltzman_constant = 5.67 * math.pow(10, -8)
+# water_flow_rate = 18 # L/min
 month_days = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
-def findSoilMoisture():
-    soil_moisture = (surface_area * findPrecipitation()) + (water_flow_rate * time_output) + ()
+# def findSoilMoisture():
+#     soil_moisture = (surface_area * findPrecipitation()) + (water_flow_rate * time_output) + ()
 
-def findCropEvapotranspiration():
+def findEvapotranspiration(): # mm/4hr
     crop_evapotranspiration = (findCropCoefficient() * findReferenceEvapotranspiration()) / 6
-    print(crop_evapotranspiration)
     return crop_evapotranspiration
 
 def findCropCoefficient():
     if 0 <= sim_day <= 15 :
-        crop_coefficient = -0.5
+        crop_coefficient = 0.5
     elif 15 < sim_day <= 35 :
-        crop_coefficient = -1.05
+        crop_coefficient = 1.05
     elif 35 < sim_day <= 50 :
-        crop_coefficient = -0.9
+        crop_coefficient = 0.9
 
     return crop_coefficient
 
-def findReferenceEvapotranspiration():
-    reference_evapotranspiration = (0.408 * findSlopeVaporPressureCurve() * (findNetRadiationAtTheCropSurface() - findSoilHeatFluxDensity()) + psychometric_constant * (900 / (findTemperature() + 273)) * findWindSpeed() * (findSaturationVaporPressure() - findActualVaporPressure())) / findSlopeVaporPressureCurve() + psychometric_constant * (1 + 0.34 * findWindSpeed())
-    print(reference_evapotranspiration)
+def findReferenceEvapotranspiration(): # mm/day
+    reference_evapotranspiration = (0.408 * findSlopeVaporPressureCurve() * (findNetRadiationAtTheCropSurface() - findSoilHeatFluxDensity()) + psychometric_constant * (900 / (temperature + 273)) * wind_speed * (findSaturationVaporPressure() - findActualVaporPressure())) / findSlopeVaporPressureCurve() + psychometric_constant * (1 + 0.34 * wind_speed)
     return reference_evapotranspiration
 
-def findSlopeVaporPressureCurve():
-    slope_vapor_pressure_curve = (108742725 * math.log(10) * math.pow(10, (5 * findTemperature() - 4746) / (10 * findTemperature() + 2373))) / math.pow(10 * findTemperature() + 2373, 2)
-
+def findSlopeVaporPressureCurve(): # kPa/deg C
+    slope_vapor_pressure_curve = 4098 * 0.6108 * math.exp(17.27 * temperature / (temperature + 237.3)) / math.pow(temperature + 237.3, 2)
     return slope_vapor_pressure_curve
 
-def findNetRadiationAtTheCropSurface():
-    net_radiation_at_the_crop_surface = (1-plant_albedo) * findSolarRadiation() + findNetLongWaveRadiation()
-
+def findNetRadiationAtTheCropSurface(): # MJ/m^2*day
+    net_radiation_at_the_crop_surface = (0.75 * findSolarRadiation() + (0.98 * (1.31 * math.pow(findActualVaporPressure() / (temperature + 273), 1/7) - 1) * stefan_boltzman_constant * math.pow(temperature + 273, 4))) * 3600 * 24 / 1000000
     return net_radiation_at_the_crop_surface
 
-################################################################################
-def findSolarRadiation():
-    solar_radiation = solar_constant * math.cos(findZ())
-
+def findSolarRadiation(): # W/m^2
+    solar_radiation = solar_constant * (math.sin(latitude * math.pi / 180) * math.sin(findSolarDeclinationAngle() * math.pi / 180) + math.cos(latitude * math.pi / 180) * math.cos(findSolarDeclinationAngle() * math.pi / 180) * math.cos(15 * (hour - 12) * math.pi / 180))
     return solar_radiation
 
-def findZ():
-    x = latitude
-    y = findSolarDeclinationAngle()
-    Z = math.acos(math.sin(x * math.pi / 180) * math.sin(y * math.pi / 180) + math.cos(x * math.pi / 180) * math.cos(y * math.pi / 180) * math.cos(findH() * math.pi / 180))
+def findSolarDeclinationAngle(): # deg
+    solar_declination_angle = -23.45 * math.cos(360 / 365 * (findDaysSinceStartOfYear() + 10) * math.pi / 180)
+    return solar_declination_angle
 
-    return Z
-
-def findH():
-    h = 15 * (hour - 12)
-
-    return h
-
-def findSoilHeatFluxDensity():
-    soil_heat_flux_density = findTemperature() * 0.324
-
+def findSoilHeatFluxDensity(): # MJ/m^2*day
+    soil_heat_flux_density = temperature * 3.75 * 3600 * 24 / 1000000
     return soil_heat_flux_density
 
-def findSaturationVaporPressure():
-    saturation_vapor_pressure = 6.11 * math.pow(10, 7.5 * findTemperature() / (237.3 + findTemperature())) * 0.1
-
+def findSaturationVaporPressure(): # kPa
+    saturation_vapor_pressure = 0.611 * math.pow(10, 7.5 * temperature / (temperature + 237.3))
     return saturation_vapor_pressure
 
-def findActualVaporPressure():
-    actual_vapor_pressure = findHumidity() * 100 * findSaturationVaporPressure() / 100
-
+def findActualVaporPressure(): # kPa
+    actual_vapor_pressure = humidity * findSaturationVaporPressure()
     return actual_vapor_pressure
-
-def findSolarDeclinationAngle():
-    solar_declination_angle = -23.45 * math.cos(360 / 365 * (findDaysSinceStartOfYear() + 10) * math.pi / 180)
-
-    return solar_declination_angle
 
 def findDaysSinceStartOfYear():
     days_since_start_of_year = 0
     for i in range(0, int(month)-1):
         days_since_start_of_year += month_days[i]
     days_since_start_of_year += int(day)
-
     return days_since_start_of_year
 
 def findTimeFrame():
@@ -116,59 +95,51 @@ def findTimeFrame():
 
 def findTemperature():
     temperature = df.iloc[findTimeFrame()].Temperature
-    print(temperature)
     return temperature
 
 def findHumidity():
     humidity = df.iloc[findTimeFrame()].Humidity
-    print(humidity)
     return humidity
 
 def findWindSpeed():
     wind_speed = df.iloc[findTimeFrame()].Wind_Speed
-    print(wind_speed)
     return wind_speed
 
 def findPrecipitation():
     precipitation = df.iloc[findTimeFrame()].Precipitation
-    print(precipitation)
     return precipitation
-
-def findNetLongWaveRadiation():
-    net_long_wave_radiation = df.iloc[findTimeFrame()].Long_Wave_Radiation
-    print(net_long_wave_radiation)
-    return net_long_wave_radiation
 
 #temperature.iloc[3].Temperature
 
 latitude = 37.5
 longitude = -121.5
 
-season = int(input('Growth season (days):')) #days, 50
-surface_area = int(input('Surface area (m^2):')) #m^2
+# season = int(input('Growth season (days):')) #days, 50
+# surface_area = int(input('Surface area (m^2):')) #m^2
 
-hour = 18
+hour = 10
 day = int(input('Day (DD):'))
 month = int(input('Month (MM):'))
 year = int(input('Year (YYYY):'))
 
-depth = 1 #m
+# depth = 1 #m
 sim_day = 0
 
-time_output = 20 #min
+# time_output = 20 #min
 
 df = pd.read_excel(r'C:\Users\alexa\Documents\semester_project_acsef\moisture_sim\sim_datasheet\data_' + str(month) + '_' + str(day) + '_' + str(year) + '.xlsx')
 
+temperature = findTemperature()
+humidity = findHumidity()
+wind_speed = findWindSpeed()
+precipitation = findPrecipitation()
 
-# while (total_days < season):
-#     df = findDataFrame()
+# while (sim_day < season):
 #
-#     hour += 1
-#
-#     if (hour > 23)
+#     if (hour > 23):
 #         hour = 0
 #         day += 1
-#         total_days += 1
+#         sim_day += 1
 #         if (day > month_days[month - 1]):
 #             day = 1
 #             month += 1
@@ -176,14 +147,15 @@ df = pd.read_excel(r'C:\Users\alexa\Documents\semester_project_acsef\moisture_si
 #                 month = 1
 #                 year += 1
 #
-#     total_days += 1
+#     df = pd.read_excel(r'C:\Users\alexa\Documents\semester_project_acsef\moisture_sim\sim_datasheet\data_' + str(month) + '_' + str(day) + '_' + str(year) + '.xlsx')
+#     hour += 1
+#
+#     crop_evapotranspiration = findCropEvapotranspiration()
+#     print(crop_evapotranspiration)
 
 # 3/10 - 4/28
 
 # crop_coefficient = findCropEvapotranspiration(day)
-crop_evapotranspiration = findCropEvapotranspiration()
-
-while (day <= season):
-    findSoilMoisture()
+crop_evapotranspiration = findEvapotranspiration()
 
 print(crop_evapotranspiration)
