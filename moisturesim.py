@@ -1,29 +1,24 @@
-# flow = float(input('Flow rate (L/s): '))
-# time = float(input('Time (hr): '))
-# K = 1.01
-# area = float(input('Area (m^2): '))
-#
-# ir_eff = float(input('Irrigation efficiency (%): '))
-#
-# depth = 2.54 * (flow / 28.3168 * time) / (K * area / 4046.86) * (ir_eff / 100)
-# soil_moisture = (flow * 3600 * 0.001) * 100 / (area * depth * 0.01)
-#
-# print('Soil moisture: ' + str(soil_moisture))
-
 import math
 import pandas as pd
+import matplotlib.pyplot as plt
+
 
 # const
 psychometric_constant = 0.054 # kPa/deg C
-plant_albedo = 0.2 # 0.2-0.25 for crops
+plant_albedo = 0.25 # 0.2-0.25 for crops
 solar_constant = 1366 # W/m^2
-
 stefan_boltzman_constant = 5.67 * math.pow(10, -8)
-# water_flow_rate = 18 # L/min
 month_days = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+soil_depth = 0.7 # m
 
-# def findSoilMoisture():
-#     soil_moisture = (surface_area * findPrecipitation()) + (water_flow_rate * time_output) + ()
+# funct
+def findSoilMoisture():
+    soil_moisture = water_mass / soil_mass * 100
+    return soil_moisture
+
+def findWaterMass():
+    water_mass = (running_time * flow_rate * 1000) + (precipitation - crop_evapotranspiration) * 1000
+    return water_mass
 
 def findEvapotranspiration(): # mm/4hr
     crop_evapotranspiration = (findCropCoefficient() * findReferenceEvapotranspiration()) / 6
@@ -36,7 +31,6 @@ def findCropCoefficient():
         crop_coefficient = 1.05
     elif 35 < sim_day <= 50 :
         crop_coefficient = 0.9
-
     return crop_coefficient
 
 def findReferenceEvapotranspiration(): # mm/day
@@ -48,7 +42,7 @@ def findSlopeVaporPressureCurve(): # kPa/deg C
     return slope_vapor_pressure_curve
 
 def findNetRadiationAtTheCropSurface(): # MJ/m^2*day
-    net_radiation_at_the_crop_surface = (0.75 * findSolarRadiation() + (0.98 * (1.31 * math.pow(findActualVaporPressure() / (temperature + 273), 1/7) - 1) * stefan_boltzman_constant * math.pow(temperature + 273, 4))) * 3600 * 24 / 1000000
+    net_radiation_at_the_crop_surface = ((1 - plant_albedo) * findSolarRadiation() + (0.98 * (1.31 * math.pow(findActualVaporPressure() / (temperature + 273), 1/7) - 1) * stefan_boltzman_constant * math.pow(temperature + 273, 4))) * 3600 * 24 / 1000000
     return net_radiation_at_the_crop_surface
 
 def findSolarRadiation(): # W/m^2
@@ -71,7 +65,7 @@ def findActualVaporPressure(): # kPa
     actual_vapor_pressure = humidity * findSaturationVaporPressure()
     return actual_vapor_pressure
 
-def findDaysSinceStartOfYear():
+def findDaysSinceStartOfYear(): # days
     days_since_start_of_year = 0
     for i in range(0, int(month)-1):
         days_since_start_of_year += month_days[i]
@@ -93,69 +87,98 @@ def findTimeFrame():
         time_frame = 5
     return time_frame
 
-def findTemperature():
+def findTemperature(): # deg C
     temperature = df.iloc[findTimeFrame()].Temperature
     return temperature
 
-def findHumidity():
+def findHumidity(): # dec
     humidity = df.iloc[findTimeFrame()].Humidity
     return humidity
 
-def findWindSpeed():
+def findWindSpeed(): # m/s
     wind_speed = df.iloc[findTimeFrame()].Wind_Speed
     return wind_speed
 
-def findPrecipitation():
+def findPrecipitation(): # mm
     precipitation = df.iloc[findTimeFrame()].Precipitation
     return precipitation
 
-#temperature.iloc[3].Temperature
 
-latitude = 37.5
-longitude = -121.5
-
+# 3/10 - 4/28 - manual inputs (commented)
+# flow_rate = int(input('Irrigation flow rate (L/min): '))
 # season = int(input('Growth season (days):')) #days, 50
-# surface_area = int(input('Surface area (m^2):')) #m^2
+# hour = int(input('Hour (HH): '))
+# day = int(input('Day (DD): '))
+# month = int(input('Month (MM): '))
+# year = int(input('Year (YYYY): '))
+# latitude = float(input('Latitude: '))
 
-hour = 10
-day = int(input('Day (DD):'))
-month = int(input('Month (MM):'))
-year = int(input('Year (YYYY):'))
+# automatic inputs
+# L/min
+flow_rate = 9
+sim_day = 0
+hour = 0
+day = 10
+month = 3
+year = 2019
+latitude = 37.5
+# %
+target_soil_moisture = 30
 
 # depth = 1 #m
-sim_day = 0
 
-# time_output = 20 #min
+water_mass = 0
+soil_mass = soil_depth * 1000000 * 1.3
+soil_moisture = 0
 
-df = pd.read_excel(r'C:\Users\alexa\Documents\semester_project_acsef\moisture_sim\sim_datasheet\data_' + str(month) + '_' + str(day) + '_' + str(year) + '.xlsx')
+hour_list=[]
+moisture_list=[]
 
-temperature = findTemperature()
-humidity = findHumidity()
-wind_speed = findWindSpeed()
-precipitation = findPrecipitation()
+while (sim_day < season - 1):
+    hour += 1
+    if (hour > 23):
+        hour = 0
+        day += 1
+        sim_day += 1
+    if (day > month_days[month - 1]):
+        day = 1
+        month += 1
+    if (month > 12):
+        month = 1
+        year += 1
 
-# while (sim_day < season):
-#
-#     if (hour > 23):
-#         hour = 0
-#         day += 1
-#         sim_day += 1
-#         if (day > month_days[month - 1]):
-#             day = 1
-#             month += 1
-#             if (month > 12):
-#                 month = 1
-#                 year += 1
-#
-#     df = pd.read_excel(r'C:\Users\alexa\Documents\semester_project_acsef\moisture_sim\sim_datasheet\data_' + str(month) + '_' + str(day) + '_' + str(year) + '.xlsx')
-#     hour += 1
-#
-#     crop_evapotranspiration = findCropEvapotranspiration()
-#     print(crop_evapotranspiration)
+    # read from datasheet
+    df = pd.read_excel(r'C:\Users\alexa\Documents\semester_project_acsef\moisture_sim\sim_datasheet\data_' + str(month) + '_' + str(day) + '_' + str(year) + '.xlsx')
+    temperature = findTemperature()
+    humidity = findHumidity()
+    wind_speed = findWindSpeed()
+    precipitation = findPrecipitation()
 
-# 3/10 - 4/28
+    crop_evapotranspiration = findEvapotranspiration()
+    if (crop_evapotranspiration < 0):
+        crop_evapotranspiration = 0
 
-# crop_coefficient = findCropEvapotranspiration(day)
-crop_evapotranspiration = findEvapotranspiration()
+    # determine and respond to moisture being below and above target value
+    if (soil_moisture < target_soil_moisture):
+        running_time = 5
+    elif (soil_moisture >= target_soil_moisture):
+        running_time = 0
 
-print(crop_evapotranspiration)
+    # add to current water content
+    water_mass += findWaterMass()
+    soil_moisture = findSoilMoisture()
+
+    if (soil_moisture < 0):
+        soil_moisture = 0
+    if (soil_moisture > 100):
+        soil_moisture = 100
+
+    # store data
+    moisture_list.append(soil_moisture)
+    hour_list.append(hour)
+
+# graph and visualize data
+cts_hours=range(0,len(moisture_list))
+plt.scatter(cts_hours,moisture_list)
+
+plt.show()
